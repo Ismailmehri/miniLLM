@@ -29,3 +29,9 @@ tqdm
 # Notebooks
 jupyter
 ipykernel
+
+# Car Preprocessing Project
+segment-anything
+ultralytics
+opencv-python
+Pillow
