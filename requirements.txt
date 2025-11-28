@@ -1,0 +1,31 @@
+# Core ML & DL
+torch>=2.0.0
+torchvision
+torchaudio
+
+# Hugging Face Ecosystem
+transformers
+datasets
+accelerate
+bitsandbytes
+peft
+trl
+huggingface_hub
+
+# RAG & Vector Stores
+langchain
+langchain-community
+chromadb
+faiss-cpu
+sentence-transformers
+
+# Data Processing & Utilities
+pandas
+numpy
+scikit-learn
+matplotlib
+tqdm
+
+# Notebooks
+jupyter
+ipykernel

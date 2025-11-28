@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Env
+venv/
+env/
+ENV/
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# IDEs
+.vscode/
+.idea/
+
+# Large Files (Models & Data)
+*.pt
+*.pth
+*.bin
+*.gguf
+*.safetensors
+*.onnx
+data/raw/*
+!data/raw/.gitkeep
+models/*
+!models/.gitkeep
