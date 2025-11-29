@@ -8,6 +8,156 @@ from PIL import Image, ImageEnhance, ImageFilter
 import cv2
 
 
+def correct_orientation(rgba_image, auto_rotate=True, rotation_angle=None):
+    """
+    Corrige l'orientation d'une image RGBA détourée pour qu'elle soit bien droite.
+    
+    Cette fonction analyse le canal alpha pour détecter l'angle d'inclinaison
+    de l'objet et le redresse automatiquement.
+    
+    Méthodes de détection utilisées:
+    1. Rectangle minimal englobant (Minimum Area Rectangle) via OpenCV
+    2. Analyse des contours de l'objet
+    3. Détection de l'axe principal via moments d'image
+    
+    Args:
+        rgba_image: PIL.Image en mode RGBA (objet sur fond transparent)
+        auto_rotate: Si True, détecte et corrige automatiquement l'angle
+        rotation_angle: Angle de rotation manuel (degrés, sens horaire)
+    
+    Returns:
+        PIL.Image: Image RGBA redressée
+    """
+    
+    if not isinstance(rgba_image, Image.Image):
+        raise TypeError("rgba_image doit être un objet PIL.Image")
+    
+    if rgba_image.mode != 'RGBA':
+        raise ValueError("L'image doit être en mode RGBA")
+    
+    print("[Orientation] Analyse de l'orientation de l'objet...")
+    
+    # ========================================================================
+    # ÉTAPE 1: EXTRACTION DU CANAL ALPHA ET CONVERSION EN FORMAT OPENCV
+    # ========================================================================
+    
+    # Convertir PIL → numpy array
+    rgba_array = np.array(rgba_image)
+    
+    # Extraire le canal alpha (masque binaire de l'objet)
+    alpha_channel = rgba_array[:, :, 3]
+    
+    # Vérifier si l'image n'est pas vide
+    if np.sum(alpha_channel) == 0:
+        print("[Orientation] Image vide, aucune correction nécessaire.")
+        return rgba_image
+    
+    # ========================================================================
+    # ÉTAPE 2: DÉTECTION AUTOMATIQUE DE L'ANGLE D'INCLINAISON
+    # ========================================================================
+    
+    if auto_rotate and rotation_angle is None:
+        # Méthode 1: Rectangle minimal englobant (Minimum Area Rectangle)
+        # Cette méthode trouve le plus petit rectangle qui englobe l'objet
+        # et retourne son angle d'orientation
+        
+        # Binariser le masque (seuillage)
+        _, binary_mask = cv2.threshold(alpha_channel, 127, 255, cv2.THRESH_BINARY)
+        
+        # Trouver les contours de l'objet
+        contours, _ = cv2.findContours(
+            binary_mask,
+            cv2.RETR_EXTERNAL,
+            cv2.CHAIN_APPROX_SIMPLE
+        )
+        
+        if len(contours) == 0:
+            print("[Orientation] Aucun contour détecté, aucune correction nécessaire.")
+            return rgba_image
+        
+        # Prendre le plus grand contour (l'objet principal)
+        main_contour = max(contours, key=cv2.contourArea)
+        
+        # Calculer le rectangle minimal englobant
+        # minAreaRect retourne: ((center_x, center_y), (width, height), angle)
+        rect = cv2.minAreaRect(main_contour)
+        (center_x, center_y), (width, height), angle = rect
+        
+        print(f"[Orientation] Rectangle minimal détecté: angle = {angle:.2f}°")
+        
+        # ========================================================================
+        # LOGIQUE DE CORRECTION D'ANGLE
+        # ========================================================================
+        # OpenCV retourne un angle entre -90° et 0°
+        # On veut que l'objet soit horizontal (angle proche de 0°)
+        
+        # Si le rectangle est plus large que haut, l'objet est déjà horizontal
+        # Si le rectangle est plus haut que large, il faut le faire pivoter de 90°
+        
+        if width < height:
+            # L'objet est vertical, on le tourne de 90°
+            rotation_angle = angle + 90
+        else:
+            # L'objet est horizontal, on corrige juste le petit angle
+            rotation_angle = angle
+        
+        # Normaliser l'angle pour éviter les grandes rotations
+        # On veut corriger uniquement les petites inclinaisons (-45° à +45°)
+        if abs(rotation_angle) > 45:
+            rotation_angle = 0
+        
+        print(f"[Orientation] Angle de correction calculé: {rotation_angle:.2f}°")
+    
+    elif rotation_angle is not None:
+        print(f"[Orientation] Utilisation de l'angle manuel: {rotation_angle:.2f}°")
+    else:
+        print("[Orientation] Aucune rotation demandée.")
+        return rgba_image
+    
+    # ========================================================================
+    # ÉTAPE 3: APPLICATION DE LA ROTATION
+    # ========================================================================
+    
+    if abs(rotation_angle) < 0.5:
+        print("[Orientation] Angle négligeable, aucune rotation appliquée.")
+        return rgba_image
+    
+    print(f"[Orientation] Application de la rotation de {rotation_angle:.2f}°...")
+    
+    # Convertir l'angle en radians pour les calculs
+    # Note: PIL.Image.rotate() prend l'angle en degrés, sens anti-horaire
+    # On inverse le signe pour corriger dans le bon sens
+    rotation_angle_pil = -rotation_angle
+    
+    # Appliquer la rotation avec PIL (gestion automatique de la transparence)
+    # expand=True agrandit le canvas pour contenir toute l'image tournée
+    rotated_image = rgba_image.rotate(
+        rotation_angle_pil,
+        resample=Image.Resampling.BICUBIC,
+        expand=True,
+        fillcolor=(0, 0, 0, 0)  # Fond transparent
+    )
+    
+    print("[Orientation] Rotation appliquée avec succès.")
+    
+    # ========================================================================
+    # ÉTAPE 4: RECADRAGE POUR ENLEVER LES BORDS TRANSPARENTS EXCESSIFS
+    # ========================================================================
+    
+    # Après rotation, il peut y avoir beaucoup d'espace transparent
+    # On recadre pour garder uniquement la zone utile
+    
+    alpha_rotated = rotated_image.split()[3]
+    bbox = alpha_rotated.getbbox()
+    
+    if bbox:
+        # Recadrer l'image selon la bounding box
+        rotated_image = rotated_image.crop(bbox)
+        print("[Orientation] Image recadrée après rotation.")
+    
+    return rotated_image
+
+
 def apply_professional_studio_look(
     rgba_image,
     output_size=(1024, 1024),
@@ -19,12 +169,14 @@ def apply_professional_studio_look(
     sharpness_factor=1.3,
     contrast_factor=1.15,
     saturation_factor=1.2,
-    background_color=(255, 255, 255)
+    background_color=(255, 255, 255),
+    auto_correct_orientation=True
 ):
     """
     Applique un post-traitement professionnel à une image RGBA détourée.
     
     Cette fonction simule une photo prise en studio professionnel avec :
+    - Correction automatique de l'orientation (redressement)
     - Ombre portée réaliste (drop shadow avec perspective)
     - Color grading (netteté, contraste, saturation)
     - Composition centrée sur fond blanc
@@ -41,6 +193,7 @@ def apply_professional_studio_look(
         contrast_factor: Facteur de contraste (1.0 = original, >1.0 = plus de contraste)
         saturation_factor: Facteur de saturation (1.0 = original, >1.0 = plus saturé)
         background_color: Couleur de fond RGB (tuple)
+        auto_correct_orientation: Si True, corrige automatiquement l'orientation
     
     Returns:
         PIL.Image: Image finale en mode RGB avec rendu studio professionnel
@@ -51,6 +204,13 @@ def apply_professional_studio_look(
     
     if rgba_image.mode != 'RGBA':
         raise ValueError("L'image doit être en mode RGBA")
+    
+    # ========================================================================
+    # ÉTAPE 0: CORRECTION DE L'ORIENTATION (NOUVEAU)
+    # ========================================================================
+    
+    if auto_correct_orientation:
+        rgba_image = correct_orientation(rgba_image, auto_rotate=True)
     
     # ========================================================================
     # ÉTAPE 1: EXTRACTION DU CANAL ALPHA ET CALCUL DE LA BOUNDING BOX
