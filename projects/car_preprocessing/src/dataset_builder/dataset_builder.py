@@ -5,7 +5,7 @@ from tqdm import tqdm
 from .mask_generator import MaskGenerator
 from .bbox_detector import BBoxDetector
 from .label_manager import LabelManager
-from .utils_image import apply_white_background
+from .utils_image import apply_white_background, center_and_resize_car
 
 class DatasetBuilder:
     def __init__(self, raw_data_dir, output_dir):
@@ -59,9 +59,10 @@ class DatasetBuilder:
         print("[Process] Étape 2 : Génération du masque...")
         mask = self.mask_generator.generate_mask(image_rgb, bbox)
 
-        # 3. APPLICATION FOND BLANC
-        print("[Process] Étape 3 : Application du fond blanc...")
-        processed = apply_white_background(image_rgb, mask)
+        # 3. APPLICATION FOND BLANC ET REDIMENSIONNEMENT
+        print("[Process] Étape 3 : Application du fond blanc et redimensionnement...")
+        # processed = apply_white_background(image_rgb, mask)
+        processed = center_and_resize_car(image_rgb, mask, bbox)
 
         # 4. SAUVEGARDE IMAGES
         save_path = os.path.join(self.processed_dir, filename)
