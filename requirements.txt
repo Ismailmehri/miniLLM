@@ -31,7 +31,9 @@ jupyter
 ipykernel
 
 # Car Preprocessing Project
-segment-anything
+git+https://github.com/facebookresearch/segment-anything.git
 ultralytics
 opencv-python
 Pillow
+rembg
+onnxruntime
