@@ -170,7 +170,8 @@ def apply_professional_studio_look(
     contrast_factor=1.15,
     saturation_factor=1.2,
     background_color=(255, 255, 255),
-    auto_correct_orientation=True
+    auto_correct_orientation=True,
+    replace_plate=False
 ):
     """
     Applique un post-traitement professionnel à une image RGBA détourée.
@@ -194,6 +195,7 @@ def apply_professional_studio_look(
         saturation_factor: Facteur de saturation (1.0 = original, >1.0 = plus saturé)
         background_color: Couleur de fond RGB (tuple)
         auto_correct_orientation: Si True, corrige automatiquement l'orientation
+        replace_plate: Si True, remplace la plaque par PLANY.TN
     
     Returns:
         PIL.Image: Image finale en mode RGB avec rendu studio professionnel
@@ -211,6 +213,46 @@ def apply_professional_studio_look(
     
     if auto_correct_orientation:
         rgba_image = correct_orientation(rgba_image, auto_rotate=True)
+    
+    # ========================================================================
+    # ÉTAPE 0.5: REMPLACEMENT DE LA PLAQUE (NOUVEAU)
+    # ========================================================================
+    
+    if replace_plate:
+        print("[Studio] Remplacement de la plaque d'immatriculation...")
+        try:
+            from .license_plate_replacer import LicensePlateReplacer
+            
+            # Convertir RGBA → RGB pour la détection
+            rgb_for_plate = np.array(rgba_image.convert('RGB'))
+            
+            # Chercher automatiquement un modèle YOLO
+            from pathlib import Path
+            yolo_model_path = None
+            possible_paths = [
+                Path("models/license_plate_detector.pt"),
+                Path("../models/license_plate_detector.pt"),
+                Path("../../models/license_plate_detector.pt")
+            ]
+            
+            for path in possible_paths:
+                if path.exists():
+                    yolo_model_path = str(path)
+                    break
+            
+            # Remplacer la plaque (avec YOLO si disponible, sinon OpenCV)
+            replacer = LicensePlateReplacer(model_path=yolo_model_path)
+            plate_replaced = replacer.replace_license_plate(rgb_for_plate)
+            
+            # Reconvertir en RGBA en gardant le canal alpha
+            alpha_backup = rgba_image.split()[3]
+            rgba_image = plate_replaced.convert('RGBA')
+            rgba_image.putalpha(alpha_backup)
+            
+            print("[Studio] Plaque remplacée.")
+        except Exception as e:
+            print(f"[Studio] Erreur remplacement plaque: {e}")
+            print("[Studio] Continuation sans remplacement de plaque.")
     
     # ========================================================================
     # ÉTAPE 1: EXTRACTION DU CANAL ALPHA ET CALCUL DE LA BOUNDING BOX

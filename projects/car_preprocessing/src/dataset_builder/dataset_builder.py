@@ -7,6 +7,7 @@ from .bbox_detector import BBoxDetector
 from .label_manager import LabelManager
 from .utils_image import apply_white_background, center_and_resize_car
 from .studio_processor import apply_professional_studio_look
+from .license_plate_replacer import LicensePlateReplacer
 from PIL import Image
 import numpy as np
 
@@ -76,7 +77,7 @@ class DatasetBuilder:
         print("[Process] Étape 4 : Application du rendu studio professionnel...")
         processed_pil = apply_professional_studio_look(
             rgba_image,
-            output_size=(240, 230),
+            output_size=(600, 575),
             padding=20,
             shadow_opacity=0.35,
             shadow_blur_radius=30,
@@ -84,7 +85,8 @@ class DatasetBuilder:
             shadow_flatten_factor=0.5,
             sharpness_factor=1.3,
             contrast_factor=1.15,
-            saturation_factor=1.2
+            saturation_factor=1.2,
+            replace_plate=True
         )
         
         # Convertir PIL → numpy pour sauvegarde avec cv2
