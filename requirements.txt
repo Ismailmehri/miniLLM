@@ -37,3 +37,4 @@ opencv-python
 Pillow
 rembg
 onnxruntime
+sam2

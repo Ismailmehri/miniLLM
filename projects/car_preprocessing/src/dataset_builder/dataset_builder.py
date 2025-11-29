@@ -6,6 +6,9 @@ from .mask_generator import MaskGenerator
 from .bbox_detector import BBoxDetector
 from .label_manager import LabelManager
 from .utils_image import apply_white_background, center_and_resize_car
+from .studio_processor import apply_professional_studio_look
+from PIL import Image
+import numpy as np
 
 class DatasetBuilder:
     def __init__(self, raw_data_dir, output_dir):
@@ -59,22 +62,45 @@ class DatasetBuilder:
         print("[Process] Étape 2 : Génération du masque...")
         mask = self.mask_generator.generate_mask(image_rgb, bbox)
 
-        # 3. APPLICATION FOND BLANC ET REDIMENSIONNEMENT
-        print("[Process] Étape 3 : Application du fond blanc et redimensionnement...")
-        # processed = apply_white_background(image_rgb, mask)
-        processed = center_and_resize_car(image_rgb, mask, bbox)
+        # 3. CRÉATION IMAGE RGBA POUR STUDIO PROCESSOR
+        print("[Process] Étape 3 : Création de l'image RGBA...")
+        # Convertir en PIL pour manipulation RGBA
+        img_pil = Image.fromarray(image_rgb)
+        mask_pil = Image.fromarray(mask)
+        
+        # Créer l'image RGBA (RGB + Alpha)
+        rgba_image = img_pil.convert('RGBA')
+        rgba_image.putalpha(mask_pil)
+        
+        # 4. APPLICATION DU RENDU STUDIO PROFESSIONNEL
+        print("[Process] Étape 4 : Application du rendu studio professionnel...")
+        processed_pil = apply_professional_studio_look(
+            rgba_image,
+            output_size=(240, 230),
+            padding=20,
+            shadow_opacity=0.35,
+            shadow_blur_radius=30,
+            shadow_offset_y=15,
+            shadow_flatten_factor=0.5,
+            sharpness_factor=1.3,
+            contrast_factor=1.15,
+            saturation_factor=1.2
+        )
+        
+        # Convertir PIL → numpy pour sauvegarde avec cv2
+        processed = np.array(processed_pil)
 
-        # 4. SAUVEGARDE IMAGES
+        # 5. SAUVEGARDE IMAGES
         save_path = os.path.join(self.processed_dir, filename)
         cv2.imwrite(save_path, cv2.cvtColor(processed, cv2.COLOR_RGB2BGR))
         print(f"[Process] Image modifiée sauvegardée → {save_path}")
 
-        # 5. SAUVEGARDE MASQUE
+        # 6. SAUVEGARDE MASQUE
         mask_filename = f"{os.path.splitext(filename)[0]}_mask.png"
         cv2.imwrite(os.path.join(self.annotations_dir, mask_filename), mask)
         print(f"[Process] Masque sauvegardé → {mask_filename}")
 
-        # 6. SAUVEGARDE ANNOTATION JSON
+        # 7. SAUVEGARDE ANNOTATION JSON
         self.label_manager.save_annotation(
             image_name=filename,
             bbox=bbox,
